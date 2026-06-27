@@ -1,0 +1,6 @@
+# build output
+obj-creator.exe
+*.o
+*.exe
+
+# keep third_party/ vendored (GLFW + GLAD) so the project builds anywhere

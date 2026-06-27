@@ -1,0 +1,159 @@
+// obj-creator — Milestone 2: draw a triangle.
+//
+// New concepts vs. Milestone 1:
+//   - GLSL shaders (vertex + fragment), compiled and linked at runtime
+//   - VBO (Vertex Buffer Object): your vertex data living in GPU memory
+//   - VAO (Vertex Array Object): remembers HOW to read that data
+//   - a draw call (glDrawArrays)
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+#include <cstdio>
+
+// ----------------------------------------------------------------------------
+// SHADER SOURCE
+// These are tiny programs written in GLSL that run ON THE GPU. We store them as
+// C strings and compile them at runtime.
+// ----------------------------------------------------------------------------
+
+// Runs once per vertex. Its only job: set gl_Position, the vertex's final
+// position in "clip space". For now we pass our coordinates straight through.
+// `layout (location = 0)` ties aPos to attribute slot 0 (we configure slot 0 below).
+static const char* vertexShaderSrc = R"glsl(
+#version 330 core
+layout (location = 0) in vec3 aPos;
+void main()
+{
+    gl_Position = vec4(aPos, 1.0);
+}
+)glsl";
+
+// Runs once per fragment (≈ per pixel the triangle covers). Outputs the color.
+// Here every fragment is the same orange.
+static const char* fragmentShaderSrc = R"glsl(
+#version 330 core
+out vec4 FragColor;
+void main()
+{
+    FragColor = vec4(1.0, 0.5, 0.2, 1.0); // R,G,B,A
+}
+)glsl";
+
+// ----------------------------------------------------------------------------
+// Helper: compile one shader and report any GLSL compile errors.
+// (Shaders compile on the GPU driver — if you get a typo, you NEED this log.)
+// ----------------------------------------------------------------------------
+static unsigned int compileShader(GLenum type, const char* src)
+{
+    unsigned int shader = glCreateShader(type);
+    glShaderSource(shader, 1, &src, nullptr);
+    glCompileShader(shader);
+
+    int ok = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+    {
+        char log[512];
+        glGetShaderInfoLog(shader, sizeof(log), nullptr, log);
+        std::fprintf(stderr, "Shader compile error:\n%s\n", log);
+    }
+    return shader;
+}
+
+static void framebufferSizeCallback(GLFWwindow*, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
+
+int main()
+{
+    // --- window + context (same as Milestone 1) ---
+    if (!glfwInit()) { std::fprintf(stderr, "Failed to init GLFW\n"); return -1; }
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "obj-creator", nullptr, nullptr);
+    if (!window) { std::fprintf(stderr, "Failed to create window\n"); glfwTerminate(); return -1; }
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    { std::fprintf(stderr, "Failed to init GLAD\n"); glfwTerminate(); return -1; }
+
+    // --- build the shader program ---
+    unsigned int vs = compileShader(GL_VERTEX_SHADER,   vertexShaderSrc);
+    unsigned int fs = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc);
+
+    unsigned int shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vs);
+    glAttachShader(shaderProgram, fs);
+    glLinkProgram(shaderProgram);
+
+    int linked = 0;
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &linked);
+    if (!linked)
+    {
+        char log[512];
+        glGetProgramInfoLog(shaderProgram, sizeof(log), nullptr, log);
+        std::fprintf(stderr, "Program link error:\n%s\n", log);
+    }
+    // The individual shaders are now baked into the program; we can delete them.
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    // --- the triangle's vertex data ---
+    // Coordinates are in Normalized Device Coordinates (NDC): the visible screen
+    // runs from -1 to +1 on both x and y, regardless of window size. z is depth.
+    float vertices[] = {
+        // x      y     z
+        -0.5f, -0.5f, 0.0f,  // bottom-left
+         0.5f, -0.5f, 0.0f,  // bottom-right
+         0.0f,  0.5f, 0.0f   // top-middle
+    };
+
+    // VAO: records the "how to read the buffer" config so we can re-bind it later
+    // with one call. In the Core profile you MUST have a VAO bound to draw.
+    unsigned int VAO, VBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+
+    glBindVertexArray(VAO);                 // start recording into this VAO
+
+    // VBO: upload the vertex bytes to GPU memory.
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // Tell GL how to interpret the buffer for attribute slot 0 (our aPos):
+    //   index 0, 3 floats per vertex, not normalized,
+    //   stride = 3 floats between vertices, offset 0 at the start.
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindVertexArray(0);                   // stop recording (optional tidy-up)
+
+    // --- render loop ---
+    while (!glfwWindowShouldClose(window))
+    {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, true);
+
+        glClearColor(0.10f, 0.12f, 0.15f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glUseProgram(shaderProgram);        // use our shaders
+        glBindVertexArray(VAO);             // re-apply the vertex config
+        glDrawArrays(GL_TRIANGLES, 0, 3);   // draw 3 vertices as 1 triangle
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    // --- cleanup ---
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteProgram(shaderProgram);
+
+    glfwTerminate();
+    return 0;
+}
