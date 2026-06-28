@@ -17,7 +17,7 @@ LDFLAGS  := -Lthird_party/glfw/lib
 # Link order matters with static libs: glfw3 first, then the system libs it needs.
 LDLIBS   := -lglfw3 -lopengl32 -lgdi32
 
-SRCS   := src/main.cpp third_party/glad/src/glad.c
+SRCS := src/main.cpp src/graphics.cpp third_party/glad/src/glad.c
 TARGET := main.exe
 
 $(TARGET): $(SRCS)
