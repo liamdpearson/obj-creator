@@ -8,6 +8,10 @@
 #include <glm/gtc/type_ptr.hpp>         // value_ptr (hand a matrix to OpenGL)
 
 #include <cstdio>
+#include <vector>
+#include <string>
+#include <fstream>
+#include <sstream>
 
 
 static const int SW = 1280;
@@ -107,6 +111,50 @@ static void mouseCallback(GLFWwindow*, double xpos, double ypos)
 }
 
 
+static bool loadOBJ(const char* path,
+                    std::vector<float>& outVerts,
+                    std::vector<unsigned int>& outIndices,
+                    const float xoff, const float yoff, const float zoff)
+{
+    std::ifstream file(path);
+    if (!file) { std::fprintf(stderr, "Cannot open %s\n", path); return false; }
+
+    unsigned int num_verts = outVerts.size();
+
+    std::string line;
+    while(std::getline(file, line))
+    {
+        std::istringstream ss(line);
+        std::string tag;
+        ss >> tag;
+
+        if (tag == "v") {
+            float x, y, z;
+            ss >> x >> y >> z;
+            outVerts.push_back(x + xoff);
+            outVerts.push_back(y + yoff);
+            outVerts.push_back(z + zoff);
+        }
+        else if (tag == "f") {
+            std::string vert;
+            std::vector<unsigned int> face;
+            while (ss >> vert) {
+                unsigned int idx = std::stoi(vert.substr(0, vert.find('/')));
+                face.push_back(idx - 1);
+            }
+            // triangulate as a fan (handles triangles, quads, n-gons)
+            for (size_t i = 1; i + 1 < face.size(); i++) {
+                outIndices.push_back(face[0] + num_verts);
+                outIndices.push_back(face[i] + num_verts);
+                outIndices.push_back(face[i+1] + num_verts);
+            }
+        }
+        // ignore vt, vn, #, o, g, s, mtllib, usemtl for now
+    }
+    return true;
+}
+
+
 int main()
 {
     // --- window + context (same as Milestone 1) ---
@@ -157,18 +205,9 @@ int main()
     // --- the triangle's vertex data ---
     // Coordinates are in Normalized Device Coordinates (NDC): the visible screen
     // runs from -1 to +1 on both x and y, regardless of window size. z is depth.
-    float vertices[] = {
-        // x      y     z
-         0.0f, 0.0f, 0.0f,  // bottom-left
-         1.0f, 0.0f, 0.0f,  // bottom-right
-         1.0f, 1.0f, 0.0f,   // top-middle
-         0.0f, 1.0f, 0.0f
-    };
-
-    unsigned int indices[] = {
-        0, 1, 2,
-        0, 2, 3
-    };
+    std::vector<float> vertices;
+    std::vector<unsigned int> indices;
+    loadOBJ("models/gun.obj", vertices, indices, 0.0f, 0.0f, 0.0f);
 
     // VAO: records the "how to read the buffer" config so we can re-bind it later
     // with one call. In the Core profile you MUST have a VAO bound to draw.
@@ -181,11 +220,15 @@ int main()
     unsigned int EBO;
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+             indices.size() * sizeof(unsigned int),
+             indices.data(), GL_STATIC_DRAW);
 
     // VBO: upload the vertex bytes to GPU memory.
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW); // change GL_STATIC_DRAW to GL_DYNAMIC_DRAW if tri will warp in 3d space
+    glBufferData(GL_ARRAY_BUFFER,
+             vertices.size() * sizeof(float),
+             vertices.data(), GL_STATIC_DRAW); // change GL_STATIC_DRAW to GL_DYNAMIC_DRAW if tri will warp in 3d space
 
     // Tell GL how to interpret the buffer for attribute slot 0 (our aPos):
     //   index 0, 3 floats per vertex, not normalized,
@@ -240,7 +283,7 @@ int main()
         glUniformMatrix4fv(modelLoc,      1, GL_FALSE, glm::value_ptr(model));
 
         glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);  // 6 = number of indices
+        glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
