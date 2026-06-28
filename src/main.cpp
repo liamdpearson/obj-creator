@@ -162,10 +162,12 @@ int main()
          0.0f, 0.0f, 0.0f,  // bottom-left
          1.0f, 0.0f, 0.0f,  // bottom-right
          1.0f, 1.0f, 0.0f,   // top-middle
+         0.0f, 1.0f, 0.0f
+    };
 
-         0.0f, 0.0f, 0.0f,  // bottom-left
-         0.0f, 1.0f, 0.0f,  // bottom-right
-         1.0f, 1.0f, 0.0f   // top-middle
+    unsigned int indices[] = {
+        0, 1, 2,
+        0, 2, 3
     };
 
     // VAO: records the "how to read the buffer" config so we can re-bind it later
@@ -175,6 +177,11 @@ int main()
     glGenBuffers(1, &VBO);
 
     glBindVertexArray(VAO); // start recording into this VAO
+
+    unsigned int EBO;
+    glGenBuffers(1, &EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
     // VBO: upload the vertex bytes to GPU memory.
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -233,7 +240,7 @@ int main()
         glUniformMatrix4fv(modelLoc,      1, GL_FALSE, glm::value_ptr(model));
 
         glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, sizeof(vertices)/3);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);  // 6 = number of indices
 
         glfwSwapBuffers(window);
         glfwPollEvents();
