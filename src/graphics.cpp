@@ -253,3 +253,55 @@ void uploadObject(Object &obj)
 
     glBindVertexArray(0); // stop recording (optional tidy-up)
 }
+
+
+void buildShaderProgram(unsigned int& vs, unsigned int& fs, unsigned int& shaderProgram,
+                        int& modelLoc, int&viewLoc, int& projectionLoc) {
+    glAttachShader(shaderProgram, vs);
+    glAttachShader(shaderProgram, fs);
+    glLinkProgram(shaderProgram);
+
+    int linked = 0;
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &linked);
+    if (!linked)
+    {
+        char log[512];
+        glGetProgramInfoLog(shaderProgram, sizeof(log), nullptr, log);
+        std::fprintf(stderr, "Program link error:\n%s\n", log);
+    }
+
+    modelLoc      = glGetUniformLocation(shaderProgram, "model");
+    viewLoc       = glGetUniformLocation(shaderProgram, "view");
+    projectionLoc = glGetUniformLocation(shaderProgram, "projection");
+
+    // The individual shaders are now baked into the program; we can delete them.
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    
+    // Tell the "tex0" sampler to read from texture unit 0 (set once).
+    glUseProgram(shaderProgram);
+    glUniform1i(glGetUniformLocation(shaderProgram, "tex0"), 0);
+}
+
+
+int initWindow(GLFWwindow*& window)
+{
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    window = glfwCreateWindow(SW, SH, "OpenGL", nullptr, nullptr);
+    if (!window) { std::fprintf(stderr, "Failed to create window\n"); glfwTerminate(); return -1; }
+    glfwSetWindowPos(window, 0, 0);
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+
+    glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    { std::fprintf(stderr, "Failed to init GLAD\n"); glfwTerminate(); return -1; }
+
+    glEnable(GL_DEPTH_TEST);
+    return 0;
+}

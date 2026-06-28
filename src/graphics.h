@@ -61,3 +61,8 @@ Object makeObject(const char* objPath, const char* texPath,
                   std::vector<float> transform);
 
 void uploadObject(Object &obj);
+
+void buildShaderProgram(unsigned int& vs, unsigned int& fs, unsigned int& shaderProgram,
+                        int& modelLoc, int&viewLoc, int& projectionLoc);
+
+int initWindow(GLFWwindow*& window);

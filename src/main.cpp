@@ -10,50 +10,19 @@ int main()
     SH = mode->height;
     lastX = SW/2, lastY = SH/2;
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    GLFWwindow* window = glfwCreateWindow(SW, SH, "OpenGL", nullptr, nullptr);
-    if (!window) { std::fprintf(stderr, "Failed to create window\n"); glfwTerminate(); return -1; }
-    glfwSetWindowPos(window, 0, 0);
-    glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-
-    glfwSetCursorPosCallback(window, mouseCallback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    { std::fprintf(stderr, "Failed to init GLAD\n"); glfwTerminate(); return -1; }
-
-    glEnable(GL_DEPTH_TEST);
-
+    GLFWwindow* window;
+    initWindow(window);
+    
     // --- build the shader program ---
     unsigned int vs = compileShader(GL_VERTEX_SHADER, vertexShaderSrc);
     unsigned int fs = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc);
-
     unsigned int shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vs);
-    glAttachShader(shaderProgram, fs);
-    glLinkProgram(shaderProgram);
+    int modelLoc, viewLoc, projectionLoc;
 
-    int linked = 0;
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &linked);
-    if (!linked)
-    {
-        char log[512];
-        glGetProgramInfoLog(shaderProgram, sizeof(log), nullptr, log);
-        std::fprintf(stderr, "Program link error:\n%s\n", log);
-    }
+    buildShaderProgram(vs, fs, shaderProgram, modelLoc, viewLoc, projectionLoc);
 
-    int modelLoc      = glGetUniformLocation(shaderProgram, "model");
-    int viewLoc       = glGetUniformLocation(shaderProgram, "view");
-    int projectionLoc = glGetUniformLocation(shaderProgram, "projection");
 
-    // The individual shaders are now baked into the program; we can delete them.
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-
+    // --- init objects --- //
     std::vector<Object> objects;
     objects.push_back(makeObject("models/gun/gun.obj", "models/gun/gun.png",
                                 std::vector<float>{0, 0, 0,  90, 45, 1.0f}));
@@ -63,11 +32,8 @@ int main()
     for (Object& obj : objects)
         uploadObject(obj);
 
-    // Tell the "tex0" sampler to read from texture unit 0 (set once).
-    glUseProgram(shaderProgram);
-    glUniform1i(glGetUniformLocation(shaderProgram, "tex0"), 0);
 
-    // --- render loop ---
+    // --- render loop --- //
     while (!glfwWindowShouldClose(window))
     {
         float currentFrame = (float)glfwGetTime();
