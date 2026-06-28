@@ -11,13 +11,14 @@
 CXX      := g++
 CXXFLAGS := -std=c++17 -Wall -Wextra -g \
             -Ithird_party/glad/include \
-            -Ithird_party/glfw/include
+            -Ithird_party/glfw/include \
+            -Ithird_party
 LDFLAGS  := -Lthird_party/glfw/lib
 # Link order matters with static libs: glfw3 first, then the system libs it needs.
 LDLIBS   := -lglfw3 -lopengl32 -lgdi32
 
 SRCS   := src/main.cpp third_party/glad/src/glad.c
-TARGET := obj-creator.exe
+TARGET := main.exe
 
 $(TARGET): $(SRCS)
 	$(CXX) $(CXXFLAGS) $(SRCS) -o $(TARGET) $(LDFLAGS) $(LDLIBS)
