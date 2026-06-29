@@ -1,5 +1,14 @@
 #include "graphics.h"
 
+std::vector<Object> objects;
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    // Only trigger on the initial press event, ignoring GLFW_REPEAT and GLFW_RELEASE
+    if (key == GLFW_KEY_Q && action == GLFW_PRESS) {
+        objects.pop_back();
+    }
+}
+
 
 int main()
 {
@@ -20,15 +29,20 @@ int main()
     int modelLoc, viewLoc, projectionLoc;
 
     buildShaderProgram(vs, fs, shaderProgram, modelLoc, viewLoc, projectionLoc);
-
+    glfwSetKeyCallback(window, key_callback);
 
 
     // --- init objects --- //
-    std::vector<Object> objects;
     objects.push_back(makeObject("models/gun/gun.obj", "models/gun/gun.png",
                                 std::vector<float>{0, 0, 0,  90, 45, 1.0f}));
     objects.push_back(makeObject("models/skull/skull.obj", "models/skull/skull.png",
                                  std::vector<float>{1, 1, 1,  0, 0, 0.01f}));
+
+    // A Doom-style billboard sprite. yaw/pitch are ignored for sprites; only
+    // position (first 3) and scale (last) are used. Use an RGBA PNG with a
+    // transparent background so the cutout looks right.
+    objects.push_back(makeSprite("models/dog/dog.png",
+                                 std::vector<float>{2, 0, 0,  0, 0, 1.0f}));
 
     for (Object& obj : objects)
         uploadObject(obj);
@@ -82,11 +96,18 @@ int main()
         glActiveTexture(GL_TEXTURE0);
         for (Object& obj : objects)
         {
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(obj.transform[0], obj.transform[1], obj.transform[2])); // pos
-            model = glm::rotate(model, glm::radians(obj.transform[4]), glm::vec3(-1,0,0));  // pitch
-            model = glm::rotate(model, glm::radians(obj.transform[3]), glm::vec3(0,1,0));  // yaw
-            model = glm::scale(model, glm::vec3(obj.transform[5]));                        // scale
+            glm::mat4 model;
+            if (obj.billboard) {
+                // Rebuilt every frame so the quad faces the camera (Doom sprite).
+                model = billboardModel(glm::vec3(obj.transform[0], obj.transform[1], obj.transform[2]),
+                                       obj.transform[5], cameraPos);
+            } else {
+                model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3(obj.transform[0], obj.transform[1], obj.transform[2])); // pos
+                model = glm::rotate(model, glm::radians(obj.transform[4]), glm::vec3(-1,0,0));  // pitch
+                model = glm::rotate(model, glm::radians(obj.transform[3]), glm::vec3(0,1,0));  // yaw
+                model = glm::scale(model, glm::vec3(obj.transform[5]));                        // scale
+            }
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
             glBindTexture(GL_TEXTURE_2D, obj.texture);

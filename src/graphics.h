@@ -13,6 +13,7 @@
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <utility>
 
 
 struct Object
@@ -25,6 +26,68 @@ struct Object
     unsigned int texture = 0;
 
     GLsizei indexCount = 0;
+
+    bool billboard = false;  // if true, the quad is rotated to face the camera each frame
+
+    Object() = default;
+
+    // The GL handles above name resources owned by the driver, not by this struct.
+    // Free them here so destroying an Object (e.g. objects.pop_back()) releases its
+    // VAO/VBO/EBO/texture. glDelete* treat a 0 handle as a no-op, so default-zeroed
+    // or moved-from objects clean up safely.
+    ~Object()
+    {
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+        glDeleteBuffers(1, &EBO);
+        glDeleteTextures(1, &texture);
+    }
+
+    // No copying: two Objects must never share the same GL handles, or the first
+    // destroyed would invalidate the other.
+    Object(const Object&)            = delete;
+    Object& operator=(const Object&) = delete;
+
+    // Moving is fine: steal the other's handles and zero them out so its destructor
+    // deletes nothing. noexcept lets std::vector move (not copy) on reallocation.
+    Object(Object&& o) noexcept
+        : transform(std::move(o.transform)),
+          vertices(std::move(o.vertices)),
+          indices(std::move(o.indices)),
+          VAO(o.VAO), VBO(o.VBO), EBO(o.EBO),
+          texture(o.texture),
+          indexCount(o.indexCount),
+          billboard(o.billboard)
+    {
+        o.VAO = o.VBO = o.EBO = 0;
+        o.texture = 0;
+    }
+
+    Object& operator=(Object&& o) noexcept
+    {
+        if (this != &o)
+        {
+            // Free our own handles before overwriting them, or we'd leak.
+            glDeleteVertexArrays(1, &VAO);
+            glDeleteBuffers(1, &VBO);
+            glDeleteBuffers(1, &EBO);
+            glDeleteTextures(1, &texture);
+
+            transform  = std::move(o.transform);
+            vertices   = std::move(o.vertices);
+            indices    = std::move(o.indices);
+            VAO        = o.VAO;
+            VBO        = o.VBO;
+            EBO        = o.EBO;
+            texture    = o.texture;
+            indexCount = o.indexCount;
+            billboard  = o.billboard;
+
+            o.VAO = o.VBO = o.EBO = 0;
+            o.texture = 0;
+        }
+        return *this;
+    }
 };
 
 extern int SW;
@@ -59,6 +122,10 @@ bool loadOBJ(const char* path,
 
 Object makeObject(const char* objPath, const char* texPath,
                   std::vector<float> transform);
+
+Object makeSprite(const char* texPath, std::vector<float> transform);
+
+glm::mat4 billboardModel(const glm::vec3& pos, float scale, const glm::vec3& camPos);
 
 void uploadObject(Object &obj);
 

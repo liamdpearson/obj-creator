@@ -51,7 +51,9 @@ uniform sampler2D tex0;
 
 void main()
 {
-    FragColor = texture(tex0, TexCoord);
+    vec4 c = texture(tex0, TexCoord);
+    if (c.a < 0.5) discard;   // Doom-style cutout: drop transparent texels entirely
+    FragColor = c;
 }
 )glsl";
 
@@ -223,6 +225,53 @@ Object makeObject(const char* objPath, const char* texPath,
     obj.texture = loadTexture(texPath);
     obj.indexCount = (GLsizei)obj.indices.size();
     return obj;
+}
+
+
+// A billboard sprite: a 1x1 quad in the XY plane, facing +Z, centered on origin.
+// No OBJ file — the geometry is just two triangles. The transform's yaw/pitch are
+// ignored (billboardModel rebuilds the rotation each frame); only pos and scale matter.
+// Layout matches loadOBJ: 5 floats per vertex (x, y, z, u, v).
+Object makeSprite(const char* texPath, std::vector<float> transform)
+{
+    Object obj;
+    obj.vertices = {
+        // x      y     z     u     v
+        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
+         0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+         0.5f,  0.5f, 0.0f, 1.0f, 1.0f,
+        -0.5f,  0.5f, 0.0f, 0.0f, 1.0f,
+    };
+    obj.indices = { 0, 1, 2,  2, 3, 0 };
+    obj.transform = transform;
+    obj.texture = loadTexture(texPath);
+    obj.indexCount = (GLsizei)obj.indices.size();
+    obj.billboard = true;
+    return obj;
+}
+
+
+// Build the model matrix for a Doom-style cylindrical billboard. The quad yaws to
+// face the camera but stays vertical (no tilt when you look up/down).
+glm::mat4 billboardModel(const glm::vec3& pos, float scale, const glm::vec3& camPos)
+{
+    // Direction from the sprite to the camera, flattened onto the XZ plane so the
+    // sprite only spins about the vertical axis.
+    glm::vec3 toCam = camPos - pos;
+    toCam.y = 0.0f;
+    toCam = glm::normalize(toCam);
+
+    glm::vec3 up    = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 right = glm::normalize(glm::cross(up, toCam));
+
+    // Drop the basis vectors straight into the matrix columns (right, up, forward),
+    // pre-scaled, with pos as the translation column. This is T * R * S in one step.
+    glm::mat4 model(1.0f);
+    model[0] = glm::vec4(right  * scale, 0.0f);
+    model[1] = glm::vec4(up     * scale, 0.0f);
+    model[2] = glm::vec4(toCam  * scale, 0.0f);
+    model[3] = glm::vec4(pos,           1.0f);
+    return model;
 }
 
 
