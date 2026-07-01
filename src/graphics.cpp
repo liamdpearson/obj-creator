@@ -231,6 +231,7 @@ Object makeObject(const char* objPath, const char* texPath,
     obj.transform = transform;
     obj.texture = loadTexture(texPath);
     obj.indexCount = (GLsizei)obj.indices.size();
+    
     return obj;
 }
 
@@ -422,4 +423,24 @@ void clearBG(float r, float g, float b, float a)
         glUniformMatrix4fv(viewLoc,       1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(modelLoc,      1, GL_FALSE, glm::value_ptr(model));
         glActiveTexture(GL_TEXTURE0);
+}
+
+void Object::Upload()
+{
+    uploadObject(*this);
+    for (Object* child : children) child->Upload();
+}
+
+void Object::Draw()
+{
+    drawObj(*this);
+    for (Object* child : children) child->Draw();
+}
+
+Object::~Object()
+{
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
+    glDeleteTextures(1, &texture);
 }
