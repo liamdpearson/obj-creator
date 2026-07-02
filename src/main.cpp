@@ -56,7 +56,7 @@ int main()
                                 Transform{0, 0, 0,  0, 45, 1.0f});
 
     Object skull = makeObject("assets/skull/skull.obj", "assets/skull/skull.png",
-                                 Transform{-1, 0, 0,  0, 0, 0.01f});
+                                 Transform{-1, 0, 0,  90, 90, 0.01f});
 
     gun.children.push_back(&skull);
     //removeChild(gun.children, &skull);
@@ -87,7 +87,7 @@ int main()
 
         for (Object* obj : parents)
         {
-            obj->world_pos = obj->transform;
+            obj->world = obj->transform.matrix();
             obj->Draw();
         }
 

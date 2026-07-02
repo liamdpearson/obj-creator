@@ -29,26 +29,18 @@ struct Transform
     float pitch;
     float scale;
 
-    Transform operator+(const Transform& parent)
+    // Build the local-to-world matrix for a transform, matching the convention
+    // used by drawObj(): translate, then yaw (Y), then pitch (-X), then scale.
+    glm::mat4 matrix() const
     {
-        glm::mat4 model(1.0f);
-
-        model = glm::translate(model, glm::vec3(parent.x, parent.y, parent.z));
-        model = glm::rotate(model, glm::radians(parent.yaw), glm::vec3(0, 1, 0));
-        model = glm::rotate(model, glm::radians(parent.pitch), glm::vec3(-1, 0, 0));
-        model = glm::scale(model, glm::vec3(parent.scale));
-
-        glm::vec4 worldPos = model * glm::vec4(x, y, z, 1.0f);
-
-        return Transform{
-            worldPos.x,
-            worldPos.y,
-            worldPos.z,
-            parent.yaw + yaw,
-            parent.pitch + pitch,
-            parent.scale * scale
-        };
+        glm::mat4 m(1.0f);
+        m = glm::translate(m, glm::vec3(x, y, z));
+        m = glm::rotate(m, glm::radians(yaw),   glm::vec3(0, 1, 0));
+        m = glm::rotate(m, glm::radians(pitch), glm::vec3(-1, 0, 0));
+        m = glm::scale(m, glm::vec3(scale));
+        return m;
     }
+
     bool operator==(const Transform& other)
     {
         return (x == other.x && y == other.y && z == other.z
@@ -69,7 +61,10 @@ struct Object
     GLsizei indexCount = 0;
 
 
-    Transform world_pos = transform;
+    // World-space transform matrix, recomputed each frame by Draw(). Keeping it
+    // as a matrix (rather than decomposing back to yaw/pitch) avoids gimbal lock
+    // and preserves any roll produced by composing rotated parents and children.
+    glm::mat4 world = glm::mat4(1.0f);
     std::vector<Object*> children = {};
     bool billboard = false;  // if true, the quad is rotated to face the camera each frame
 

@@ -229,7 +229,7 @@ Object makeObject(const char* objPath, const char* texPath,
     Object obj;
     loadOBJ(objPath, obj.vertices, obj.indices);
     obj.transform = transform;
-    obj.world_pos = transform;
+    obj.world = transform.matrix();
     obj.texture = loadTexture(texPath);
     obj.indexCount = (GLsizei)obj.indices.size();
     
@@ -253,7 +253,7 @@ Object makeSprite(const char* texPath, Transform transform)
     };
     obj.indices = { 0, 1, 2,  2, 3, 0 };
     obj.transform = transform;
-    obj.world_pos = transform;
+    obj.world = transform.matrix();
     obj.texture = loadTexture(texPath);
     obj.indexCount = (GLsizei)obj.indices.size();
     obj.billboard = true;
@@ -381,15 +381,15 @@ void drawObj(Object& obj)
 {
     glm::mat4 model;
     if (obj.billboard) {
-        // Rebuilt every frame so the quad faces the camera (Doom sprite).
-        model = billboardModel(glm::vec3(obj.world_pos.x, obj.world_pos.y, obj.world_pos.z),
-                               obj.world_pos.scale, cameraPos);
+        // Rebuilt every frame so the quad faces the camera (Doom sprite). Pull
+        // world position from the translation column and uniform scale from a
+        // basis column length of the world matrix.
+        glm::vec3 worldPos   = glm::vec3(obj.world[3]);
+        float     worldScale = glm::length(glm::vec3(obj.world[0]));
+        model = billboardModel(worldPos, worldScale, cameraPos);
     } else {
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(obj.world_pos.x, obj.world_pos.y, obj.world_pos.z)); // pos
-        model = glm::rotate(model, glm::radians(obj.world_pos.yaw), glm::vec3(0,1,0));     // yaw
-        model = glm::rotate(model, glm::radians(obj.world_pos.pitch), glm::vec3(-1,0,0));  // pitch
-        model = glm::scale(model, glm::vec3(obj.world_pos.scale));                         // scale
+        // The world matrix already encodes translation, rotation, and scale.
+        model = obj.world;
     }
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
@@ -438,7 +438,7 @@ void Object::Draw()
     drawObj(*this);
     for (Object* child : this->children)
     {
-        child->world_pos = child->transform + this->world_pos;
+        child->world = this->world * child->transform.matrix();
         child->Draw();
     }
 }
